@@ -4,7 +4,7 @@
 # before encoding.
 
 
-import os, sys, random, subprocess, re, mad, fractions
+import optparse, os, sys, random, subprocess, tempfile, re, mad, fractions
 
 FRAMES_PER_SEC = 25
 
@@ -14,10 +14,8 @@ def process(pics, mp3):
         raise RuntimeError('The number of pictures must not exceed '
                            'the target number of frames')
     framesperpic = fractions.Fraction(allframes, len(pics))
-    #random.shuffle(pics)
     startframe = 0
-    tmpdir = '/tmp/'+znakovi(5)
-    os.mkdir(tmpdir)
+    tmpdir = tempfile.mkdtemp(prefix='img2video')
     try:
         for picture in pics:
             createsymlinks(picture, int(startframe), int(startframe + framesperpic),
@@ -40,18 +38,25 @@ def encode(mp3, outfile, tmpdir):
                      outfile])
 
 
-# Definitions for creating the unique temp files
-def znakovi(x):
-    ZNAKOVLJE = [chr(i) for i in xrange (97,122)]
-    vrijednost = []
-    for i in xrange(x + 1):
-        vrijednost.append(random.choice(ZNAKOVLJE))
-    return ''.join(vrijednost)
-
-
 def createsymlinks(picture, startnumber, endnumber, tmpdir):
     crntdir = os.getcwd()
     for i in xrange(startnumber,endnumber):
         os.symlink(crntdir+'/'+picture, '%s/frame%d.jpg' % (tmpdir,i))
 
-process(sys.argv[1:-1], sys.argv[-1])
+def main():
+    parser = optparse.OptionParser(usage="%prog [-s] IMAGES... MP3")
+    parser.add_option('-s', '--shuffle', dest='shuffle',
+                      default=False, action='store_true',
+                      help='shuffle images before encoding')
+    options, args = parser.parse_args()
+    if len(args) < 2:
+        parser.print_usage(sys.stderr)
+        sys.exit(2)
+    pics = args[:-1]
+    mp3 = args[-1]
+    if options.shuffle:
+        random.shuffle(pics)
+    process(pics, mp3)
+
+if __name__ == '__main__':
+    main()
