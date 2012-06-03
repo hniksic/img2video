@@ -4,44 +4,48 @@
 # before encoding.
 
 
-import optparse, os, sys, random, subprocess, tempfile, re, mad, fractions
+import optparse, os, sys, random, subprocess, tempfile, mad, fractions, shutil
 
 FRAMES_PER_SEC = 25
 
 def process(pics, mp3):
-    allframes = mp3_length(mp3) * FRAMES_PER_SEC
-    if len(pics) > allframes:
+    frames = mp3_length(mp3) * FRAMES_PER_SEC
+    if len(pics) > frames:
         raise RuntimeError('The number of pictures must not exceed '
                            'the target number of frames')
-    framesperpic = fractions.Fraction(allframes, len(pics))
     startframe = 0
-    tmpdir = tempfile.mkdtemp(prefix='img2video')
+    picdir = tempfile.mkdtemp(prefix='img2video')
     try:
-        for picture in pics:
-            createsymlinks(picture, int(startframe), int(startframe + framesperpic),
-                           tmpdir)
-            startframe += framesperpic
-        encode(mp3, "blaa.avi", tmpdir)
+        createsymlinks(pics, frames, picdir)
+        encode(mp3, "blaa.avi", picdir)
     finally:
-        print "would delete", tmpdir
-        #subprocess.call(["rm", "-rf" ,tmpdir])
+        print "would delete", picdir
+        #shutil.rmtree(picdir)
 
 def mp3_length(mp3):
     return mad.MadFile(sys.argv[-1]).total_time() / 1000
 
-# Encoding actions
-def encode(mp3, outfile, tmpdir):
+def process_pic(pic, picdir):
+    # trololo...
+    return os.path.abspath(pic)
+
+def createsymlinks(pics, frames, picdir):
+    framesperpic = fractions.Fraction(frames, len(pics))
+    startframe = 0
+    crntdir = os.getcwd()
+    for pic in pics:
+        pic = process_pic(pic, picdir)
+        for i in xrange(int(startframe), int(startframe + framesperpic)):
+            os.symlink(pic, '%s/frame%d.jpg' % (picdir, i))
+        startframe += framesperpic
+
+def encode(mp3, outfile, picdir):
     subprocess.call(["ffmpeg",
                      "-r", str(FRAMES_PER_SEC),
-                     "-i", tmpdir + '/frame%d.jpg', "-i", mp3,
+                     "-i", picdir + '/frame%d.jpg', "-i", mp3,
                      "-vcodec", "ffv1","-b", "500k", "-acodec","copy",
                      outfile])
 
-
-def createsymlinks(picture, startnumber, endnumber, tmpdir):
-    crntdir = os.getcwd()
-    for i in xrange(startnumber,endnumber):
-        os.symlink(crntdir+'/'+picture, '%s/frame%d.jpg' % (tmpdir,i))
 
 def main():
     parser = optparse.OptionParser(usage="%prog [-s] IMAGES... MP3")
