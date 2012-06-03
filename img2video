@@ -7,8 +7,9 @@
 import optparse, os, sys, random, subprocess, tempfile, mad, fractions, shutil
 
 FRAMES_PER_SEC = 25
+DEFAULT_OUTPUT_FILE = 'out.avi'
 
-def process(pics, mp3):
+def process(pics, mp3, outfile):
     frames = mp3_length(mp3) * FRAMES_PER_SEC
     if len(pics) > frames:
         raise RuntimeError('The number of pictures must not exceed '
@@ -17,13 +18,12 @@ def process(pics, mp3):
     picdir = tempfile.mkdtemp(prefix='img2video')
     try:
         createsymlinks(pics, frames, picdir)
-        encode(mp3, "blaa.avi", picdir)
+        encode(mp3, outfile, picdir)
     finally:
-        print "would delete", picdir
-        #shutil.rmtree(picdir)
+        shutil.rmtree(picdir)
 
 def mp3_length(mp3):
-    return mad.MadFile(sys.argv[-1]).total_time() / 1000
+    return mad.MadFile(mp3).total_time() / 1000
 
 def process_pic(pic, picdir):
     # trololo...
@@ -48,19 +48,21 @@ def encode(mp3, outfile, picdir):
 
 
 def main():
-    parser = optparse.OptionParser(usage="%prog [-s] IMAGES... MP3")
+    parser = optparse.OptionParser(usage="%prog [-s] [o OUTFILE] MP3 IMAGE...")
     parser.add_option('-s', '--shuffle', dest='shuffle',
                       default=False, action='store_true',
                       help='shuffle images before encoding')
+    parser.add_option('-o', '--output', dest='output',
+                      help='output file name, defaults to out.avi')
     options, args = parser.parse_args()
     if len(args) < 2:
         parser.print_usage(sys.stderr)
         sys.exit(2)
-    pics = args[:-1]
-    mp3 = args[-1]
+    mp3 = args[0]
+    pics = args[1:]
     if options.shuffle:
         random.shuffle(pics)
-    process(pics, mp3)
+    process(pics, mp3, options.output or DEFAULT_OUTPUT_FILE)
 
 if __name__ == '__main__':
     main()
