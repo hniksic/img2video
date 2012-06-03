@@ -6,26 +6,41 @@
 
 import os, sys, random, subprocess, re, mad, fractions
 
-pics = sys.argv[1:-1]
-allframes = mad.MadFile(sys.argv[-1]).total_time() / 1000 * 25
-framesperpic = fractions.Fraction(allframes, len(pics))
+FRAMES_PER_SEC = 25
+
+def process(pics, mp3):
+    allframes = mp3_length(mp3) * FRAMES_PER_SEC
+    if len(pics) > allframes:
+        raise RuntimeError('The number of pictures must not exceed '
+                           'the target number of frames')
+    framesperpic = fractions.Fraction(allframes, len(pics))
+    #random.shuffle(pics)
+    startframe = 0
+    tmpdir = '/tmp/'+znakovi(5)
+    os.mkdir(tmpdir)
+    try:
+        for picture in pics:
+            createsymlinks(picture, int(startframe), int(startframe + framesperpic),
+                           tmpdir)
+            startframe += framesperpic
+        encode(mp3, "blaa.avi", tmpdir)
+    finally:
+        print "would delete", tmpdir
+        #subprocess.call(["rm", "-rf" ,tmpdir])
+
+def mp3_length(mp3):
+    return mad.MadFile(sys.argv[-1]).total_time() / 1000
+
+# Encoding actions
+def encode(mp3, outfile, tmpdir):
+    subprocess.call(["ffmpeg",
+                     "-r", str(FRAMES_PER_SEC),
+                     "-i", tmpdir + '/frame%d.jpg', "-i", mp3,
+                     "-vcodec", "ffv1","-b", "500k", "-acodec","copy",
+                     outfile])
 
 
-if len(pics) > allframes:
-   print 'The number of pictures must not exceed the number of frames!'
-   sys.exit(1)
-
-
-# Defining the encoding
-def encode():
-  args = ["ffmpeg", "-r","25", "-i", tmpdir+'/frame%d.jpg',"-i", sys.argv[-1] , "-vcodec", "ffv1" ,"-b", "500k", "-acodec","copy" ,"blaaa.avi"]
-  dlt = ["rm", "-rf" ,tmpdir]
-  subprocess.call(args)
-  subprocess.call(dlt)
-
-
-# # Definitions
-# For creating the unique temp files
+# Definitions for creating the unique temp files
 def znakovi(x):
     ZNAKOVLJE = [chr(i) for i in xrange (97,122)]
     vrijednost = []
@@ -34,32 +49,9 @@ def znakovi(x):
     return ''.join(vrijednost)
 
 
-def createsymlinks(picture,startnumber,endnumber):
+def createsymlinks(picture, startnumber, endnumber, tmpdir):
+    crntdir = os.getcwd()
     for i in xrange(startnumber,endnumber):
-       os.symlink(crntdir+'/'+picture, '%s/frame%d.jpg' % (tmpdir,i))
+        os.symlink(crntdir+'/'+picture, '%s/frame%d.jpg' % (tmpdir,i))
 
-
-# # Actions prior to encoding.
-# Number of total frames
-
-   
-
-tmpdir = '/tmp/'+znakovi(5)
-crntdir = os.getcwd()
-os.mkdir(tmpdir)
-
-
-startframe = 0
-
-
-
-# Uncomment if you want random!
-
-#random.shuffle(pics)
-
-for picture in pics:
-       createsymlinks(picture, int(startframe), int(startframe + framesperpic))
-       startframe += framesperpic
-
-
-encode()
+process(sys.argv[1:-1], sys.argv[-1])
