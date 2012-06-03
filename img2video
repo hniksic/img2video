@@ -1,0 +1,65 @@
+#!/usr/bin/python2
+
+# All the images need to be consistent in their resolutions
+# before encoding.
+
+
+import os, sys, random, subprocess, re, mad, fractions
+
+pics = sys.argv[1:-1]
+allframes = mad.MadFile(sys.argv[-1]).total_time() / 1000 * 25
+framesperpic = fractions.Fraction(allframes, len(pics))
+
+
+if len(pics) > allframes:
+   print 'The number of pictures must not exceed the number of frames!'
+   sys.exit(1)
+
+
+# Defining the encoding
+def encode():
+  args = ["ffmpeg", "-r","25", "-i", tmpdir+'/frame%d.jpg',"-i", sys.argv[-1] , "-vcodec", "ffv1" ,"-b", "500k", "-acodec","copy" ,"blaaa.avi"]
+  dlt = ["rm", "-rf" ,tmpdir]
+  subprocess.call(args)
+  subprocess.call(dlt)
+
+
+# # Definitions
+# For creating the unique temp files
+def znakovi(x):
+    ZNAKOVLJE = [chr(i) for i in xrange (97,122)]
+    vrijednost = []
+    for i in xrange(x + 1):
+        vrijednost.append(random.choice(ZNAKOVLJE))
+    return ''.join(vrijednost)
+
+
+def createsymlinks(picture,startnumber,endnumber):
+    for i in xrange(startnumber,endnumber):
+       os.symlink(crntdir+'/'+picture, '%s/frame%d.jpg' % (tmpdir,i))
+
+
+# # Actions prior to encoding.
+# Number of total frames
+
+   
+
+tmpdir = '/tmp/'+znakovi(5)
+crntdir = os.getcwd()
+os.mkdir(tmpdir)
+
+
+startframe = 0
+
+
+
+# Uncomment if you want random!
+
+#random.shuffle(pics)
+
+for picture in pics:
+       createsymlinks(picture, int(startframe), int(startframe + framesperpic))
+       startframe += framesperpic
+
+
+encode()
