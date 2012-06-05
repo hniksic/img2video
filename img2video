@@ -4,12 +4,13 @@
 # before encoding.
 
 
-import optparse, os, sys, random, subprocess, tempfile, mad, fractions, shutil
+import optparse, os, sys, random, subprocess, tempfile, mad, fractions, shutil, re
+import PIL.Image
 
 FRAMES_PER_SEC = 25
 DEFAULT_OUTPUT_FILE = 'out.avi'
 
-def process(pics, mp3, outfile):
+def process(pics, mp3, geom, outfile):
     frames = mp3_length(mp3) * FRAMES_PER_SEC
     if len(pics) > frames:
         raise RuntimeError('The number of pictures must not exceed '
@@ -17,7 +18,7 @@ def process(pics, mp3, outfile):
     startframe = 0
     picdir = tempfile.mkdtemp(prefix='img2video')
     try:
-        create_images(pics, frames, picdir)
+        create_images(pics, geom, frames, picdir)
         encode(mp3, outfile, picdir)
     finally:
         shutil.rmtree(picdir)
@@ -27,9 +28,15 @@ def mp3_length(mp3):
 
 def process_pic(src, target, geom):
     # trololo...
-    os.symlink(os.path.abspath(src), target)
+    if geom is None:
+        os.symlink(os.path.abspath(src), target)
+        return
+    print 'resizing %s to %s in %s' % (src, geom, target)
+    img = PIL.Image.open(src)
+    img = img.resize(geom, PIL.Image.BICUBIC)
+    img.save(target)
 
-def create_images(pics, frames, picdir):
+def create_images(pics, geom, frames, picdir):
     framesperpic = fractions.Fraction(frames, len(pics))
     startframe = 0
     crntdir = os.getcwd()
@@ -38,7 +45,7 @@ def create_images(pics, frames, picdir):
                      for i in xrange(int(startframe),
                                      int(startframe + framesperpic)))
         framefile = frameiter.next()
-        pic = process_pic(pic, framefile, None)
+        pic = process_pic(pic, framefile, geom)
         # repeat the frame as needed
         for fl in frameiter:
             os.symlink(framefile, fl)
@@ -51,9 +58,18 @@ def encode(mp3, outfile, picdir):
                      "-vcodec", "ffv1","-b", "500k", "-acodec","copy",
                      outfile])
 
+GEOM_RE = re.compile(r'(\d+)x(\d+)$')
+
+def parse_geometry(s):
+    match = GEOM_RE.match(s)
+    if not match:
+        raise ValueError("invalid geometry %r" % s)
+    return (int(match.group(1)), int(match.group(2)))
 
 def main():
     parser = optparse.OptionParser(usage="%prog [-s] [o OUTFILE] MP3 IMAGE...")
+    parser.add_option('-g', '--geom', dest='geom',
+                      help='image geometry')
     parser.add_option('-s', '--shuffle', dest='shuffle',
                       default=False, action='store_true',
                       help='shuffle images before encoding')
@@ -67,7 +83,11 @@ def main():
     pics = args[1:]
     if options.shuffle:
         random.shuffle(pics)
-    process(pics, mp3, options.output or DEFAULT_OUTPUT_FILE)
+    if options.geom:
+        geom = parse_geometry(options.geom)
+    else:
+        geom = None
+    process(pics, mp3, geom, options.output or DEFAULT_OUTPUT_FILE)
 
 if __name__ == '__main__':
     main()
