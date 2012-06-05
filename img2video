@@ -17,7 +17,7 @@ def process(pics, mp3, outfile):
     startframe = 0
     picdir = tempfile.mkdtemp(prefix='img2video')
     try:
-        createsymlinks(pics, frames, picdir)
+        create_images(pics, frames, picdir)
         encode(mp3, outfile, picdir)
     finally:
         shutil.rmtree(picdir)
@@ -25,18 +25,23 @@ def process(pics, mp3, outfile):
 def mp3_length(mp3):
     return mad.MadFile(mp3).total_time() / 1000
 
-def process_pic(pic, picdir):
+def process_pic(src, target, geom):
     # trololo...
-    return os.path.abspath(pic)
+    os.symlink(os.path.abspath(src), target)
 
-def createsymlinks(pics, frames, picdir):
+def create_images(pics, frames, picdir):
     framesperpic = fractions.Fraction(frames, len(pics))
     startframe = 0
     crntdir = os.getcwd()
     for pic in pics:
-        pic = process_pic(pic, picdir)
-        for i in xrange(int(startframe), int(startframe + framesperpic)):
-            os.symlink(pic, '%s/frame%d.jpg' % (picdir, i))
+        frameiter = ('%s/frame%d.jpg' % (picdir, i)
+                     for i in xrange(int(startframe),
+                                     int(startframe + framesperpic)))
+        framefile = frameiter.next()
+        pic = process_pic(pic, framefile, None)
+        # repeat the frame as needed
+        for fl in frameiter:
+            os.symlink(framefile, fl)
         startframe += framesperpic
 
 def encode(mp3, outfile, picdir):
