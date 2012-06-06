@@ -6,6 +6,7 @@
 import optparse, os, sys, random, subprocess, tempfile, mad, fractions, shutil, re
 import PIL.Image
 import PIL.ImageOps
+import PIL.ExifTags
 
 FRAMES_PER_SEC = 25
 DEFAULT_OUTPUT_FILE = 'out.avi'
@@ -26,6 +27,30 @@ def process(pics, mp3, geom, outfile):
 def mp3_length(mp3):
     return mad.MadFile(mp3).total_time() / 1000
 
+def get_tagid(name):
+    for tagid, tagname in PIL.ExifTags.TAGS.iteritems():
+        if tagname == name:
+            return tagid
+
+def get_tagval(img, tagname):
+    return img._getexif().get(get_tagid(tagname))
+
+transposition_map = {
+    2: (PIL.Image.FLIP_LEFT_RIGHT,),
+    3: (PIL.Image.ROTATE_180,),
+    4: (PIL.Image.FLIP_TOP_BOTTOM,),
+    5: (PIL.Image.FLIP_TOP_BOTTOM, PIL.Image.ROTATE_270),
+    6: (PIL.Image.ROTATE_270,),
+    7: (PIL.Image.FLIP_LEFT_RIGHT, PIL.Image.ROTATE_270),
+    8: (PIL.Image.ROTATE_90,),
+}
+
+def apply_exif_orientation(img):
+    orient = get_tagval(img, 'Orientation')
+    for method in transposition_map.get(orient, ()):
+        img = img.transpose(method)
+    return img
+
 def scaled_size(size, geom):
     aspect = fractions.Fraction(*size)
     wanted_aspect = fractions.Fraction(*geom)
@@ -36,12 +61,7 @@ def scaled_size(size, geom):
         return g_w, int(g_w / aspect)
     return geom
 
-def process_pic(src, target, geom):
-    if geom is None:
-        os.symlink(os.path.abspath(src), target)
-        return
-    print 'fitting %s to %s, saving to %s' % (src, geom, target)
-    img = PIL.Image.open(src)
+def letterbox(img, geom):
     newsize = scaled_size(img.size, geom)
     if newsize != img.size:
         img = img.resize(newsize, PIL.Image.BICUBIC)
@@ -49,9 +69,19 @@ def process_pic(src, target, geom):
         w, h = geom
         scaled_w, scaled_h = newsize
         full.paste(img, ((w - scaled_w) / 2, (h - scaled_h) / 2))
-        full.save(target)
-    else:
+        return full
+    return img
+
+def process_pic(src, target, geom):
+    if geom is None:
         os.symlink(os.path.abspath(src), target)
+        return
+    print 'fitting %s to %s, saving to %s' % (src, geom, target)
+    img = PIL.Image.open(src)
+    size = img.size
+    img = apply_exif_orientation(img)
+    img = letterbox(img, geom)
+    img.save(target)
 
 def create_images(pics, geom, frames, picdir):
     framesperpic = fractions.Fraction(frames, len(pics))
@@ -86,7 +116,7 @@ def parse_geometry(s):
 def main():
     parser = optparse.OptionParser(usage="%prog [-s] [o OUTFILE] MP3 IMAGE...")
     parser.add_option('-g', '--geom', dest='geom',
-                      help='image geometry')
+                      help='desired image geometry, WxH')
     parser.add_option('-s', '--shuffle', dest='shuffle',
                       default=False, action='store_true',
                       help='shuffle images before encoding')
