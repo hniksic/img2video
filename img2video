@@ -54,20 +54,20 @@ def apply_exif_orientation(img):
 def scaled_size(size, geom):
     aspect = fractions.Fraction(*size)
     wanted_aspect = fractions.Fraction(*geom)
-    g_w, g_h = geom
+    w, h = geom
     if aspect < wanted_aspect:
-        return int(g_h * aspect), g_h
-    if aspect > wanted_aspect:
-        return g_w, int(g_w / aspect)
-    return geom
+        w = int(h * aspect)     # black bars left and right
+    else:
+        h = int(w / aspect)     # black bars up and down
+    return w, h
 
 def letterbox(img, geom):
-    newsize = scaled_size(img.size, geom)
-    if newsize != img.size:
-        img = img.resize(newsize, PIL.Image.BICUBIC)
+    smallsize = scaled_size(img.size, geom)
+    if smallsize != img.size:
+        img = img.resize(smallsize, PIL.Image.BICUBIC)
         full = PIL.Image.new(img.mode, geom)
         w, h = geom
-        scaled_w, scaled_h = newsize
+        scaled_w, scaled_h = smallsize
         full.paste(img, ((w - scaled_w) / 2, (h - scaled_h) / 2))
         return full
     return img
