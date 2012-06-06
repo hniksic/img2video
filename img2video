@@ -3,9 +3,9 @@
 # All the images need to be consistent in their resolutions
 # before encoding.
 
-
 import optparse, os, sys, random, subprocess, tempfile, mad, fractions, shutil, re
 import PIL.Image
+import PIL.ImageOps
 
 FRAMES_PER_SEC = 25
 DEFAULT_OUTPUT_FILE = 'out.avi'
@@ -26,15 +26,32 @@ def process(pics, mp3, geom, outfile):
 def mp3_length(mp3):
     return mad.MadFile(mp3).total_time() / 1000
 
+def scaled_size(size, geom):
+    aspect = fractions.Fraction(*size)
+    wanted_aspect = fractions.Fraction(*geom)
+    g_w, g_h = geom
+    if aspect < wanted_aspect:
+        return int(g_h * aspect), g_h
+    if aspect > wanted_aspect:
+        return g_w, int(g_w / aspect)
+    return geom
+
 def process_pic(src, target, geom):
-    # trololo...
     if geom is None:
         os.symlink(os.path.abspath(src), target)
         return
-    print 'resizing %s to %s in %s' % (src, geom, target)
+    print 'fitting %s to %s, saving to %s' % (src, geom, target)
     img = PIL.Image.open(src)
-    img = img.resize(geom, PIL.Image.BICUBIC)
-    img.save(target)
+    newsize = scaled_size(img.size, geom)
+    if newsize != img.size:
+        img = img.resize(newsize, PIL.Image.BICUBIC)
+        full = PIL.Image.new(img.mode, geom)
+        w, h = geom
+        scaled_w, scaled_h = newsize
+        full.paste(img, ((w - scaled_w) / 2, (h - scaled_h) / 2))
+        full.save(target)
+    else:
+        os.symlink(os.path.abspath(src), target)
 
 def create_images(pics, geom, frames, picdir):
     framesperpic = fractions.Fraction(frames, len(pics))
