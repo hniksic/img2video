@@ -4,7 +4,7 @@
 # before encoding.
 
 import optparse
-import os, sys, re
+import os, sys, re, itertools
 import random, subprocess, shutil, tempfile
 import mad
 import fractions
@@ -12,6 +12,7 @@ import PIL.Image, PIL.ImageOps, PIL.ExifTags
 
 FRAMES_PER_SEC = 25
 DEFAULT_OUTPUT_FILE = 'out.avi'
+DEFAULT_GEOMETRY = (640, 480)
 
 def process(pics, mp3, geom, outfile):
     frames = mp3_length(mp3) * FRAMES_PER_SEC
@@ -81,7 +82,6 @@ def process_pic(src, target, geom):
     if geom is None:
         os.symlink(os.path.abspath(src), target)
         return
-    print 'fitting %s to %s, saving to %s' % (src, geom, target)
     img = PIL.Image.open(src)
     size = img.size
     img = apply_exif_orientation(img)
@@ -91,8 +91,13 @@ def process_pic(src, target, geom):
 def create_images(pics, geom, frames, picdir):
     framesperpic = fractions.Fraction(frames, len(pics))
     startframe = 0
-    crntdir = os.getcwd()
+    cnt = itertools.count(1)
+    if geom is not None:
+        print 'scaling %d images...' % len(pics),
     for pic in pics:
+        if geom is not None:
+            print cnt.next(),
+        sys.stdout.flush()
         frameiter = ('%s/frame%d.jpg' % (picdir, i)
                      for i in xrange(int(startframe),
                                      int(startframe + framesperpic)))
@@ -102,13 +107,24 @@ def create_images(pics, geom, frames, picdir):
         for fl in frameiter:
             os.symlink(framefile, fl)
         startframe += framesperpic
+    if geom is not None:
+        print
 
 def encode(mp3, outfile, picdir):
     subprocess.call(["ffmpeg",
                      "-r", str(FRAMES_PER_SEC),
-                     "-i", picdir + '/frame%d.jpg', "-i", mp3,
-                     "-vcodec", "ffv1","-b", "500k", "-acodec","copy",
+                     "-i", os.path.join(picdir, 'frame%d.jpg'),
+                     "-i", mp3,
+                     #"-loglevel", "warning",
+                     "-vcodec", "ffv1",
+                     "-b:v", "500k",
+                     "-acodec","copy",
                      outfile])
+
+def determine_geometry(pics):
+    sizes = [PIL.Image.open(pic).size for pic in pics]
+    widths, heights = zip(*sizes)
+    return max(widths), max(heights)
 
 GEOM_RE = re.compile(r'(\d+)x(\d+)$')
 
@@ -121,7 +137,8 @@ def parse_geometry(s):
 def main():
     parser = optparse.OptionParser(usage="%prog [-s] [o OUTFILE] MP3 IMAGE...")
     parser.add_option('-g', '--geom', dest='geom',
-                      help='desired image geometry, WxH')
+                      metavar='wxh|auto|none',
+                      help='desired image geometry, defaults to 640x480')
     parser.add_option('-s', '--shuffle', dest='shuffle',
                       default=False, action='store_true',
                       help='shuffle images before encoding')
@@ -135,10 +152,15 @@ def main():
     pics = args[1:]
     if options.shuffle:
         random.shuffle(pics)
-    if options.geom:
-        geom = parse_geometry(options.geom)
-    else:
+    if options.geom is None:
+        geom = DEFAULT_GEOMETRY
+    elif options.geom == 'auto':
+        geom = determine_geometry(pics)
+    elif options.geom == 'none':
         geom = None
+    else:
+        geom = parse_geometry(options.geom)
+    print 'using geometry', geom
     process(pics, mp3, geom, options.output or DEFAULT_OUTPUT_FILE)
 
 if __name__ == '__main__':
