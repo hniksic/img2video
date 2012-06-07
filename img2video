@@ -87,27 +87,28 @@ def process_pic(src, target, geom):
     img = letterbox(img, geom)
     img.save(target, 'JPEG', quality=90)
 
+def generate_pics(pics, geom, picdir):
+    if geom is not None:
+        print 'scaling %d images...' % len(pics),
+        sys.stdout.flush()
+    for cnt, pic in enumerate(pics, 1):
+        if geom is not None:
+            print cnt,
+            sys.stdout.flush()
+        newfile = os.path.join(picdir, 'pic-%d.jpg' % cnt)
+        process_pic(pic, newfile, geom)
+        yield newfile
+    if geom is not None:
+        print
+
 def create_images(pics, geom, frames, picdir):
     framesperpic = fractions.Fraction(frames, len(pics))
     startframe = 0
-    cnt = itertools.count(1)
-    if geom is not None:
-        print 'scaling %d images...' % len(pics),
-    for pic in pics:
-        if geom is not None:
-            print cnt.next(),
-        sys.stdout.flush()
-        frameiter = ('%s/frame%d.jpg' % (picdir, i)
-                     for i in xrange(int(startframe),
-                                     int(startframe + framesperpic)))
-        framefile = frameiter.next()
-        pic = process_pic(pic, framefile, geom)
-        # repeat the frame as needed
-        for fl in frameiter:
-            os.symlink(framefile, fl)
+    for pic in generate_pics(pics, geom, picdir):
+        for frame in xrange(int(startframe),
+                            int(startframe + framesperpic)):
+            os.symlink(pic, os.path.join(picdir, 'frame%d.jpg' % frame))
         startframe += framesperpic
-    if geom is not None:
-        print
 
 def encode(mp3, outfile, picdir):
     subprocess.call(["ffmpeg",
