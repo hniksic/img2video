@@ -24,6 +24,7 @@ def process(pics, mp3, geom, outfile):
         create_images(pics, geom, frames, picdir)
         encode(mp3, outfile, picdir)
     finally:
+        print 'deleting', picdir
         shutil.rmtree(picdir)
 
 def mp3_length(mp3):
@@ -64,14 +65,16 @@ def scaled_size(size, geom):
     return w, h
 
 def letterbox(img, geom):
-    smallsize = scaled_size(img.size, geom)
-    if smallsize != img.size:
-        img = img.resize(smallsize, PIL.Image.BICUBIC)
-        full = PIL.Image.new(img.mode, geom)
-        w, h = geom
-        scaled_w, scaled_h = smallsize
-        full.paste(img, ((w - scaled_w) / 2, (h - scaled_h) / 2))
-        return full
+    """Fit the image into a letterbox of size GEOM."""
+    fitsize = scaled_size(img.size, geom)
+    if fitsize != img.size:
+        img = img.resize(fitsize, PIL.Image.ANTIALIAS)
+        if img.size != geom:
+            full = PIL.Image.new(img.mode, geom)
+            w, h = geom
+            scaled_w, scaled_h = fitsize
+            full.paste(img, ((w - scaled_w) / 2, (h - scaled_h) / 2))
+            img = full
     return img
 
 def process_pic(src, target, geom):
@@ -83,7 +86,7 @@ def process_pic(src, target, geom):
     size = img.size
     img = apply_exif_orientation(img)
     img = letterbox(img, geom)
-    img.save(target)
+    img.save(target, 'JPEG', quality=90)
 
 def create_images(pics, geom, frames, picdir):
     framesperpic = fractions.Fraction(frames, len(pics))
