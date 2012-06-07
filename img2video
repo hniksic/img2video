@@ -83,7 +83,6 @@ def process_pic(src, target, geom):
         os.symlink(os.path.abspath(src), target)
         return
     img = PIL.Image.open(src)
-    size = img.size
     img = apply_exif_orientation(img)
     img = letterbox(img, geom)
     img.save(target, 'JPEG', quality=90)
