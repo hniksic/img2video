@@ -22,7 +22,7 @@ def process(pics, mp3, geom, outfile):
     startframe = 0
     picdir = tempfile.mkdtemp(prefix='img2video')
     try:
-        create_images(pics, geom, frames, picdir)
+        create_frames(pics, geom, frames, picdir)
         encode(mp3, outfile, picdir)
     finally:
         print 'deleting', picdir
@@ -78,7 +78,7 @@ def letterbox(img, geom):
             img = full
     return img
 
-def process_pic(src, target, geom):
+def process_single(src, target, geom):
     if geom is None:
         os.symlink(os.path.abspath(src), target)
         return
@@ -87,24 +87,28 @@ def process_pic(src, target, geom):
     img = letterbox(img, geom)
     img.save(target, 'JPEG', quality=90)
 
-def generate_pics(pics, geom, picdir):
+def process_pics(pics, geom, picdir):
     if geom is not None:
         print 'scaling %d images...' % len(pics),
         sys.stdout.flush()
+    processed = []
     for cnt, pic in enumerate(pics, 1):
         if geom is not None:
             print cnt,
             sys.stdout.flush()
         newfile = os.path.join(picdir, 'pic-%d.jpg' % cnt)
-        process_pic(pic, newfile, geom)
-        yield newfile
+        process_single(pic, newfile, geom)
+        processed.append(newfile)
     if geom is not None:
         print
+    return processed
 
-def create_images(pics, geom, frames, picdir):
+def create_frames(pics, geom, frames, picdir):
     framesperpic = fractions.Fraction(frames, len(pics))
     startframe = 0
-    for pic in generate_pics(pics, geom, picdir):
+    processed = process_pics(pics, geom, picdir)
+    print 'generating frame symlinks'
+    for pic in processed:
         for frame in xrange(int(startframe),
                             int(startframe + framesperpic)):
             os.symlink(pic, os.path.join(picdir, 'frame%d.jpg' % frame))
