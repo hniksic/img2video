@@ -9,6 +9,7 @@ import random, subprocess, shutil, tempfile
 import mad
 import fractions
 import PIL.Image, PIL.ImageOps, PIL.ExifTags
+import multiprocessing.pool
 
 FRAMES_PER_SEC = 25
 DEFAULT_OUTPUT_FILE = 'out.avi'
@@ -37,7 +38,9 @@ def get_tagid(name):
             return tagid
 
 def get_tagval(img, tagname):
-    return img._getexif().get(get_tagid(tagname))
+    exif = img._getexif()
+    if exif is not None:
+        return exif.get(get_tagid(tagname))
 
 transposition_map = {
     2: (PIL.Image.FLIP_LEFT_RIGHT,),
@@ -78,7 +81,8 @@ def letterbox(img, geom):
             img = full
     return img
 
-def process_single(src, target, geom):
+def transform_single(src, target, geom, progress):
+    progress()
     if geom is None:
         os.symlink(os.path.abspath(src), target)
         return
@@ -87,32 +91,39 @@ def process_single(src, target, geom):
     img = letterbox(img, geom)
     img.save(target, 'JPEG', quality=90)
 
-def process_pics(pics, geom, picdir):
+def report(s):
+    sys.stdout.write(s)
+    sys.stdout.flush()
+
+def transform_pics(pics, geom, picdir):
+    ncores = os.sysconf('SC_NPROCESSORS_ONLN')
+    pool = multiprocessing.pool.ThreadPool(ncores)
     if geom is not None:
-        print 'scaling %d images...' % len(pics),
-        sys.stdout.flush()
+        report('scaling %d images in %d threads...' % (len(pics), ncores))
     processed = []
     for cnt, pic in enumerate(pics, 1):
-        if geom is not None:
-            print cnt,
-            sys.stdout.flush()
         newfile = os.path.join(picdir, 'pic-%d.jpg' % cnt)
-        process_single(pic, newfile, geom)
+        pool.apply_async(transform_single,
+                         (pic, newfile, geom,
+                          lambda cnt=cnt: report(' %d' % cnt)))
         processed.append(newfile)
-    if geom is not None:
-        print
+    pool.close()
+    pool.join()
+    if geom:
+        report('\n')
     return processed
 
 def create_frames(pics, geom, frames, picdir):
     framesperpic = fractions.Fraction(frames, len(pics))
     startframe = 0
-    processed = process_pics(pics, geom, picdir)
-    print 'generating frame symlinks'
+    processed = transform_pics(pics, geom, picdir)
+    report('generating frame symlinks...')
     for pic in processed:
         for frame in xrange(int(startframe),
                             int(startframe + framesperpic)):
             os.symlink(pic, os.path.join(picdir, 'frame%d.jpg' % frame))
         startframe += framesperpic
+    report(' done\n')
 
 def encode(mp3, outfile, picdir):
     subprocess.call(["ffmpeg",
