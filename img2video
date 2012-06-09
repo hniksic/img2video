@@ -119,7 +119,7 @@ def transform_pics(pics, geom, picdir):
     outfiles = []
     results = set()
     for cnt, pic in enumerate(pics, 1):
-        newfile = os.path.join(picdir, 'pic-%d.jpg' % cnt)
+        newfile = os.path.join(picdir, 'pic-%04d.jpg' % cnt)
         results.add(
             pool.apply_async(task_start, (pic, newfile, geom, cnt)))
         outfiles.append(newfile)
