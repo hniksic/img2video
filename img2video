@@ -19,23 +19,6 @@ DEFAULT_GEOMETRY = (640, 480)
 def thread_count():
     return os.sysconf('SC_NPROCESSORS_ONLN')
 
-def process(pics, mp3, geom, outfile):
-    frames = mp3_length(mp3) * FRAMES_PER_SEC
-    if len(pics) > frames:
-        raise RuntimeError('The number of pictures must not exceed '
-                           'the target number of frames')
-    startframe = 0
-    picdir = tempfile.mkdtemp(prefix='img2video')
-    try:
-        create_frames(pics, geom, frames, picdir)
-        encode(mp3, outfile, picdir)
-    finally:
-        print 'deleting', picdir
-        shutil.rmtree(picdir)
-
-def mp3_length(mp3):
-    return mad.MadFile(mp3).total_time() / 1000
-
 def get_tagid(name):
     for tagid, tagname in PIL.ExifTags.TAGS.iteritems():
         if tagname == name:
@@ -146,7 +129,7 @@ def create_frames(pics, geom, frames, picdir):
         startframe += framesperpic
     report(' done\n')
 
-def encode(mp3, outfile, picdir):
+def encode_video(mp3, outfile, picdir):
     subprocess.call(["ffmpeg",
                      "-r", str(FRAMES_PER_SEC),
                      "-i", os.path.join(picdir, 'frame%d.jpg'),
@@ -157,6 +140,23 @@ def encode(mp3, outfile, picdir):
                      "-acodec", "copy",
                      "-threads", str(thread_count()),
                      outfile])
+
+def mp3_length(mp3):
+    return mad.MadFile(mp3).total_time() / 1000
+
+def create_video(pics, mp3, geom, outfile):
+    frames = mp3_length(mp3) * FRAMES_PER_SEC
+    if len(pics) > frames:
+        raise RuntimeError('The number of pictures must not exceed '
+                           'the target number of frames')
+    startframe = 0
+    picdir = tempfile.mkdtemp(prefix='img2video')
+    try:
+        create_frames(pics, geom, frames, picdir)
+        encode_video(mp3, outfile, picdir)
+    finally:
+        print 'deleting', picdir
+        shutil.rmtree(picdir)
 
 def determine_geometry(pics):
     sizes = [PIL.Image.open(pic).size for pic in pics]
@@ -198,7 +198,7 @@ def main():
     else:
         geom = parse_geometry(options.geom)
     print 'using geometry', geom
-    process(pics, mp3, geom, options.output or DEFAULT_OUTPUT_FILE)
+    create_video(pics, mp3, geom, options.output or DEFAULT_OUTPUT_FILE)
 
 if __name__ == '__main__':
     main()
