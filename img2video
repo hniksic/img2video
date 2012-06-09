@@ -4,8 +4,9 @@
 # before encoding.
 
 import optparse
-import os, sys, re, itertools
-import random, subprocess, shutil, tempfile
+import os, sys, time
+import re, itertools
+import random, subprocess, shutil, tempfile, signal
 import mad
 import fractions
 import PIL.Image, PIL.ImageOps, PIL.ExifTags
@@ -14,6 +15,9 @@ import multiprocessing.pool
 FRAMES_PER_SEC = 25
 DEFAULT_OUTPUT_FILE = 'out.avi'
 DEFAULT_GEOMETRY = (640, 480)
+
+def thread_count():
+    return os.sysconf('SC_NPROCESSORS_ONLN')
 
 def process(pics, mp3, geom, outfile):
     frames = mp3_length(mp3) * FRAMES_PER_SEC
@@ -81,8 +85,7 @@ def letterbox(img, geom):
             img = full
     return img
 
-def transform_single(src, target, geom, progress):
-    progress()
+def transform_single(src, target, geom):
     if geom is None:
         os.symlink(os.path.abspath(src), target)
         return
@@ -95,23 +98,40 @@ def report(s):
     sys.stdout.write(s)
     sys.stdout.flush()
 
+def task_start(src, target, geom, taskid):
+    report(' %d' % taskid)
+    transform_single(src, target, geom)
+
+def wait_results(results):
+    while results:
+        for r in results.copy():
+            if r.ready():
+                r.get()         # propagate exception if any
+                results.discard(r)
+        time.sleep(min(.5, .1 * len(results)))
+
 def transform_pics(pics, geom, picdir):
-    ncores = os.sysconf('SC_NPROCESSORS_ONLN')
-    pool = multiprocessing.pool.ThreadPool(ncores)
+    pool = multiprocessing.pool.ThreadPool(thread_count())
     if geom is not None:
-        report('scaling %d images in %d threads...' % (len(pics), ncores))
-    processed = []
+        report('scaling %d images in %d threads...'
+               % (len(pics), thread_count()))
+    outfiles = []
+    results = set()
     for cnt, pic in enumerate(pics, 1):
         newfile = os.path.join(picdir, 'pic-%d.jpg' % cnt)
-        pool.apply_async(transform_single,
-                         (pic, newfile, geom,
-                          lambda cnt=cnt: report(' %d' % cnt)))
-        processed.append(newfile)
+        results.add(
+            pool.apply_async(task_start, (pic, newfile, geom, cnt)))
+        outfiles.append(newfile)
+    try:
+        wait_results(results)
+    except:
+        pool.terminate()
+        raise
     pool.close()
     pool.join()
     if geom:
         report('\n')
-    return processed
+    return outfiles
 
 def create_frames(pics, geom, frames, picdir):
     framesperpic = fractions.Fraction(frames, len(pics))
@@ -133,7 +153,8 @@ def encode(mp3, outfile, picdir):
                      #"-loglevel", "warning",
                      "-vcodec", "ffv1",
                      "-b:v", "500k",
-                     "-acodec","copy",
+                     "-acodec", "copy",
+                     "-threads", str(thread_count()),
                      outfile])
 
 def determine_geometry(pics):
