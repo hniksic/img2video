@@ -99,7 +99,8 @@ def report(s):
     sys.stdout.flush()
 
 def task_start(src, target, geom, taskid):
-    report(' %d' % taskid)
+    if geom:
+        report(' %d' % taskid)
     transform_single(src, target, geom)
 
 def wait_results(results):
@@ -112,7 +113,7 @@ def wait_results(results):
 
 def transform_pics(pics, geom, picdir):
     pool = multiprocessing.pool.ThreadPool(thread_count())
-    if geom is not None:
+    if geom:
         report('scaling %d images in %d threads...'
                % (len(pics), thread_count()))
     outfiles = []
