@@ -101,7 +101,7 @@ def wait_results(results):
         time.sleep(min(.5, .1 * len(results)))
 
 def transform_pics(pics, geom, picdir):
-    pool = multiprocessing.pool.ThreadPool(thread_count())
+    pool = multiprocessing.pool.Pool(thread_count())
     if geom:
         report('scaling %d images in %d threads...'
                % (len(pics), thread_count()))
