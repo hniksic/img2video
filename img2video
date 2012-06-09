@@ -158,7 +158,10 @@ def create_video(pics, mp3, geom, outfile):
         encode_video(mp3, outfile, picdir)
     finally:
         print 'deleting', picdir
-        shutil.rmtree(picdir)
+        try:
+            shutil.rmtree(picdir)
+        except OSError:
+            pass
 
 def determine_geometry(pics):
     sizes = [PIL.Image.open(pic).size for pic in pics]
