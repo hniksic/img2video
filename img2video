@@ -128,8 +128,9 @@ def create_frames(pics, geom, frames, picdir):
     # non-existent processed pictures occur when a source image cannot
     # be read
     processed[:] = [p for p in processed if os.path.exists(p)]
-    report('generating frame symlinks...')
-    framesperpic = fractions.Fraction(frames, len(pics))
+    report('generating %d frames out of %d images...'
+           % (frames, len(processed)))
+    framesperpic = fractions.Fraction(frames, len(processed))
     startframe = 0
     for pic in processed:
         for frame in xrange(int(startframe),
