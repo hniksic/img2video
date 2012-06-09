@@ -25,6 +25,8 @@ def get_tagid(name):
             return tagid
 
 def get_tagval(img, tagname):
+    if not hasattr(img, '_getexif'):
+        return
     exif = img._getexif()
     if exif is not None:
         return exif.get(get_tagid(tagname))
