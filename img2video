@@ -74,7 +74,11 @@ def transform_single(src, target, geom):
     if geom is None:
         os.symlink(os.path.abspath(src), target)
         return
-    img = PIL.Image.open(src)
+    try:
+        img = PIL.Image.open(src)
+    except IOError:
+        print 'warning: cannot open %s' % src
+        return
     img = apply_exif_orientation(img)
     img = letterbox(img, geom)
     img.save(target, 'JPEG', quality=90)
@@ -120,10 +124,13 @@ def transform_pics(pics, geom, picdir):
     return outfiles
 
 def create_frames(pics, geom, frames, picdir):
+    processed = transform_pics(pics, geom, picdir)
+    # non-existent processed pictures occur when a source image cannot
+    # be read
+    processed[:] = [p for p in processed if os.path.exists(p)]
+    report('generating frame symlinks...')
     framesperpic = fractions.Fraction(frames, len(pics))
     startframe = 0
-    processed = transform_pics(pics, geom, picdir)
-    report('generating frame symlinks...')
     for pic in processed:
         for frame in xrange(int(startframe),
                             int(startframe + framesperpic)):
