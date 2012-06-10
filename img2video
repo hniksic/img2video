@@ -100,10 +100,10 @@ def task_start(src, target, geom, taskid):
 
 def wait_results(results):
     while results:
-        for r in results.copy():
-            if r.ready():
-                r.get()         # propagate exception if any
-                results.discard(r)
+        done = frozenset(r for r in results if r.ready())
+        results -= done
+        for r in done:
+            r.get()         # propagate exception if any
         time.sleep(min(.5, .1 * len(results)))
 
 def transform_pics(pics, geom, picdir):
