@@ -1,8 +1,5 @@
 #!/usr/bin/env python2
 
-# All the images need to be consistent in their resolutions
-# before encoding.
-
 import optparse
 import os, sys, time
 import re, itertools
