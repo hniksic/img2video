@@ -139,20 +139,20 @@ def create_frames(pics, geom, frames, picdir):
         startframe += framesperpic
     report(' done\n')
 
-def encode_video(mp3, outfile, picdir):
+def encode_video(mp3file, outfile, picdir):
     subprocess.call(["ffmpeg",
                      "-r", str(FRAMES_PER_SEC),
                      "-i", os.path.join(picdir, 'frame%d.jpg'),
-                     "-i", mp3,
+                     "-i", mp3file,
                      #"-loglevel", "warning",
                      "-vcodec", "ffv1",
-                     "-b:v", "500k",
+                     #"-b:v", "50k",    # ffv1 is lossless
                      "-acodec", "copy",
                      "-threads", str(thread_count()),
                      outfile])
 
-def mp3_length(mp3):
-    return mad.MadFile(mp3).total_time() / 1000
+def mp3_length(mp3file):
+    return mad.MadFile(mp3file).total_time() / 1000
 
 def create_video(pics, mp3, geom, outfile):
     frames = mp3_length(mp3) * FRAMES_PER_SEC
