@@ -159,7 +159,6 @@ def create_video(pics, mp3, geom, outfile):
     if len(pics) > frames:
         raise RuntimeError('The number of pictures must not exceed '
                            'the target number of frames')
-    startframe = 0
     picdir = tempfile.mkdtemp(prefix='img2video')
     try:
         create_frames(pics, geom, frames, picdir)
