@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 
 # Copyright (C) 2012 Vladimir Niksic
 # Copyright (C) 2012 Hrvoje Niksic
@@ -13,20 +13,20 @@ import optparse
 import os, sys, time
 import re, itertools
 import random, subprocess, shutil, tempfile, signal
-import mad
 import fractions
 import PIL.Image, PIL.ImageOps, PIL.ExifTags
 import multiprocessing.pool
+from tinytag import TinyTag
 
 FRAMES_PER_SEC = 25
-DEFAULT_OUTPUT_FILE = 'out.avi'
-DEFAULT_GEOMETRY = (640, 480)
+DEFAULT_OUTPUT_FILE = 'out.mp4'
+DEFAULT_GEOMETRY = (1920, 1080)
 
 def thread_count():
     return os.sysconf('SC_NPROCESSORS_ONLN')
 
 def get_tagid(name):
-    for tagid, tagname in PIL.ExifTags.TAGS.iteritems():
+    for tagid, tagname in PIL.ExifTags.TAGS.items():
         if tagname == name:
             return tagid
 
@@ -72,7 +72,7 @@ def letterbox(img, geom):
             full = PIL.Image.new(img.mode, geom)
             w, h = geom
             scaled_w, scaled_h = fitsize
-            full.paste(img, ((w - scaled_w) / 2, (h - scaled_h) / 2))
+            full.paste(img, ((w - scaled_w) // 2, (h - scaled_h) // 2))
             img = full
     return img
 
@@ -83,7 +83,7 @@ def transform_single(src, target, geom):
     try:
         img = PIL.Image.open(src)
     except IOError:
-        print 'warning: cannot open %s' % src
+        sys.stderr.write('warning: cannot open %s' % src)
         return
     img = apply_exif_orientation(img)
     img = letterbox(img, geom)
@@ -139,7 +139,7 @@ def create_frames(pics, geom, frames, picdir):
     framesperpic = fractions.Fraction(frames, len(processed))
     startframe = 0
     for pic in processed:
-        for frame in xrange(int(startframe),
+        for frame in range(int(startframe),
                             int(startframe + framesperpic)):
             os.symlink(pic, os.path.join(picdir, 'frame%d.jpg' % frame))
         startframe += framesperpic
@@ -151,14 +151,14 @@ def encode_video(mp3file, outfile, picdir):
                      "-i", os.path.join(picdir, 'frame%d.jpg'),
                      "-i", mp3file,
                      #"-loglevel", "warning",
-                     "-vcodec", "ffv1",
-                     #"-b:v", "50k",    # ffv1 is lossless
+                     "-vcodec", "libx264",
                      "-acodec", "copy",
                      "-threads", str(thread_count()),
                      outfile])
 
 def mp3_length(mp3file):
-    return mad.MadFile(mp3file).total_time() / 1000
+    tag = TinyTag.get(mp3file)
+    return int(tag.duration)
 
 def create_video(pics, mp3, geom, outfile):
     frames = mp3_length(mp3) * FRAMES_PER_SEC
@@ -170,7 +170,7 @@ def create_video(pics, mp3, geom, outfile):
         create_frames(pics, geom, frames, picdir)
         encode_video(mp3, outfile, picdir)
     finally:
-        print 'deleting', picdir
+        sys.stderr.write('deleting', picdir)
         try:
             shutil.rmtree(picdir)
         except OSError:
@@ -193,12 +193,12 @@ def main():
     parser = optparse.OptionParser(usage="%prog [-s] [o OUTFILE] MP3 IMAGE...")
     parser.add_option('-g', '--geom', dest='geom',
                       metavar='wxh|auto|none',
-                      help='desired image geometry, defaults to 640x480')
+                      help='desired image geometry, defaults to 1920x1080')
     parser.add_option('-s', '--shuffle', dest='shuffle',
                       default=False, action='store_true',
                       help='shuffle images before encoding')
     parser.add_option('-o', '--output', dest='output',
-                      help='output file name, defaults to out.avi')
+                      help='output file name, defaults to out.mp4')
     options, args = parser.parse_args()
     if len(args) < 2:
         parser.print_usage(sys.stderr)
@@ -215,7 +215,7 @@ def main():
         geom = None
     else:
         geom = parse_geometry(options.geom)
-    print 'using geometry', geom
+    sys.stderr.write('using geometry', geom)
     create_video(pics, mp3, geom, options.output or DEFAULT_OUTPUT_FILE)
 
 if __name__ == '__main__':
