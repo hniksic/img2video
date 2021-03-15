@@ -83,7 +83,7 @@ def transform_single(src, target, geom):
     try:
         img = PIL.Image.open(src)
     except IOError:
-        sys.stderr.write('warning: cannot open %s' % src)
+        print('warning: cannot open %s' % src)
         return
     img = apply_exif_orientation(img)
     img = letterbox(img, geom)
