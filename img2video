@@ -170,7 +170,7 @@ def create_video(pics, mp3, geom, outfile):
         create_frames(pics, geom, frames, picdir)
         encode_video(mp3, outfile, picdir)
     finally:
-        sys.stderr.write('deleting', picdir)
+        print('deleting', picdir)
         try:
             shutil.rmtree(picdir)
         except OSError:
