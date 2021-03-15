@@ -215,7 +215,7 @@ def main():
         geom = None
     else:
         geom = parse_geometry(options.geom)
-    sys.stderr.write('using geometry', geom)
+    print('using geometry', geom)
     create_video(pics, mp3, geom, options.output or DEFAULT_OUTPUT_FILE)
 
 if __name__ == '__main__':
